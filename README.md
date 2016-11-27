@@ -25,7 +25,7 @@ The tool is developped on Node.js to provide a simple UI for users to enter ques
 ![Graph](screenshots/1.png "Graph")
 
 ### Main Page, all questions are shown in this page, here you can add some information and the objectifs:
-![Graph](screenshots/2.png "Graph")
+![Graph](screenshots/2bis.png "Graph")
 
 
 ## Prerequisites
