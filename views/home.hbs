@@ -1,0 +1,322 @@
+<script>
+var profileFields = null;
+var helpTextVisible = true;
+var questionCleared = false;
+var cookieExpiration = 5;
+
+require([
+	"dojo/domReady!"
+],
+function() {
+	load();
+});
+
+function load() {
+	require([
+		"dojo/dom",
+		"dojo/request",
+		"dojo/cookie"
+	],
+	function(dom, request, cookie) {
+		if (cookie("IBMWatsonQIT")) {
+			console.log("IBMWatsonQIT cookie found with ID ", cookie("IBMWatsonQIT"));
+			var id = cookie("IBMWatsonQIT");
+			var url = "api/question/" + id;
+			var options = {
+				method: "GET",
+				handleAs: "json",
+			}
+			var deferred = request(url, options);
+			deferred.then(function(result) {
+				//console.log(result);
+				setConfiguration(result.profile_fields);
+				setSubmittedQuestions(result.questions);
+			}, function(error){
+				console.log("API call " + url + " failed with error:" + error);
+				setConfiguration(null);
+			});
+			
+		} else {
+			setConfiguration(null);
+			setSubmittedQuestions(null);
+		}
+	});
+}
+
+function setConfiguration(profileValues) {
+	require([
+		"dojo/dom",
+		"dojo/request",
+	],
+	function(dom, request) {
+		var profileValuesMap = {};
+		if (profileValues) {
+			profileValues.forEach(function(field) {
+				profileValuesMap[field.id] = field.value;
+			});
+		}
+		
+		var url = "api/configuration";
+		var options = {
+			method: "GET",
+			handleAs: "json",
+		}
+		var deferred = request(url, options);
+		deferred.then(function(result) {
+			cookieExpiration = result.configuration.cookie_expiration;
+			
+			var helpText = dom.byId("helpText");
+			helpText.innerHTML = result.configuration.help_text;
+			
+			var profileFieldsHTML = "";
+			profileFields = result.configuration.profile_fields;
+			result.configuration.profile_fields.forEach(function(field) {
+				profileFieldsHTML += "<tr>";
+				profileFieldsHTML += "<td class='profileFieldName'>";
+				profileFieldsHTML += field.display;
+				profileFieldsHTML += "</td>";
+				switch(field.type) {
+					case "select":
+						profileFieldsHTML += "<td class='profileFieldValue'>";
+						profileFieldsHTML += "<select id=" + field.id + " name=" + field.id + " class='profileSelectField'>";
+						profileFieldsHTML += "<option value='s'></option>";
+						field.values.forEach(function(value) {
+							if (profileValuesMap[field.id] == value) {
+								profileFieldsHTML += "<option value='" + value + "' selected>" + value + "</option>";
+							} else {
+								profileFieldsHTML += "<option value='" + value + "'>" + value + "</option>";
+							}
+						});
+						profileFieldsHTML += "</select>"
+						profileFieldsHTML += "</td>";
+						break;
+				}
+				profileFieldsHTML += "</tr>";
+			});
+			
+			var profileTable = dom.byId("profileTable");
+			profileTable.innerHTML = profileFieldsHTML;
+		}, function(error){
+			console.log("API call " + url + " failed with error:" + error);
+		});
+	});
+}
+
+function setSubmittedQuestions(questions) {
+	require([
+		"dojo/dom"
+	],
+	function(dom) {
+		var submittedQuestionsDiv = dom.byId("submittedQuestions");
+		if (questions) {
+			if (questions.length > 0) {
+				submittedQuestionsDiv.innerHTML = "";
+				questions.forEach(function(question) {
+					submittedQuestionsDiv.innerHTML += "<div class='submittedQuestion'>" + question + "</div>";
+				});
+			} else {
+				submittedQuestionsDiv.innerHTML = "<div class='submittedQuestion'>Pas de question soumise pour l'instant, veuillez en soumettre une</div>";
+			}
+		} else {
+			submittedQuestionsDiv.innerHTML = "<div class='submittedQuestion'>Pas de question soumise pour l'instant, veuillez en soumettre une</div>";
+		}
+	});
+}
+
+function clearQuestion() {
+
+	require([
+		"dojo/dom",
+		"dojo/dom-class",
+		"dojo/dom-style"
+	],
+	function(dom, domClass, domStyle) {
+		var question = dom.byId("question");
+		question.value ="";
+		if (!questionCleared) {
+			question.value = "";
+			var helpTextContainer = dom.byId("helpTextContainer");
+			domClass.add(helpTextContainer, "hidden");
+			var btnHelp = dom.byId("btnHelp");
+			domClass.remove(btnHelp, "btnHelpOn");
+			domClass.add(btnHelp, "btnHelp");
+			helpTextVisible = false;
+			
+			question.value = "";
+			questionCleared = true;
+		}
+	});
+}
+
+function submit() {
+	require([
+		"dojo/dom",
+		"dojo/dom-form",
+		"dojo/dom-class",
+		"dojo/request",
+		"dojo/cookie"
+	],
+	function(dom, domForm, domClass, request, cookie) {
+		var question = domForm.fieldToObject("question");
+		//console.log("question", question);
+		if (question == "" || question == "Entrez votre question ici...") {
+			var questionErrorContainer = dom.byId("questionErrorContainer");
+			var questionError = dom.byId("questionError");
+			domClass.remove(questionErrorContainer, "hidden");
+			questionError.innerHTML = "Veuillez entrer une question";
+			window.setTimeout(function() {clearErrors();}, 3000);
+		} else {
+			showProgress();
+			var id = "";
+			if (cookie("IBMWatsonQIT")) {
+				console.log("IBMWatsonQIT cookie found with ID ", cookie("IBMWatsonQIT"));
+				id = cookie("IBMWatsonQIT");
+			}
+			var fields = [];
+			profileFields.forEach(function(field) {
+				var fieldValue = domForm.fieldToObject(field.id);
+				fields.push({id: field.id, value: fieldValue});
+			});
+			
+			var url = "api/save";
+			var options = {
+				method: "POST",
+				handleAs: "json",
+				data: {
+					id: id,
+					question: question,
+					profile_fields: JSON.stringify(fields)
+				}
+			}
+			
+			var deferred = request(url, options);
+			deferred.then(function(result) {
+				//console.log(result);
+				if (cookie("IBMWatsonQIT") != result.id) {
+					console.log("setting IBMWatsonQIT cookie with ID ", result.id);
+					cookie("IBMWatsonQIT", result.id, { expires: cookieExpiration });
+				}
+				var statusMsgContainerDiv = dom.byId("statusMsgContainer");
+				var statusMsgDiv = dom.byId("statusMsg");
+				statusMsgDiv.innerHTML = "Votre question a été soumise!";
+				domClass.add(statusMsgContainerDiv, "statusMsgSuccess");
+				domClass.remove(statusMsgContainerDiv, "hidden");
+				window.setTimeout(function() {clearStatusMsg();}, 5000);
+				hideProgress();
+				load();
+			}, function(error){
+				console.log("API call " + url + " failed with error:" + error);
+				var statusMsgContainerDiv = dom.byId("statusMsgContainer");
+				var statusMsgDiv = dom.byId("statusMsg");
+				statusMsgDiv.innerHTML = "Une erreur s'est produite. Merci de contacter l'administrateur.";
+				domClass.add(statusMsgContainerDiv, "statusMsgError");
+				domClass.remove(statusMsgContainerDiv, "hidden");
+				window.setTimeout(function() {clearStatusMsg();}, 5000);
+				hideProgress();
+			});
+		}
+        $('#question').html('test');
+	});
+}
+
+function showProgress() {
+	require([
+		"dojo/dom",
+		"dojo/dom-class",
+		"dojo/dom-style"
+	],
+	function(dom, domClass, domStyle) {
+		var progress = dom.byId("refreshProgress");
+		var btnSubmit = dom.byId("btnSubmit");
+		domClass.remove(progress, "hidden");
+		domStyle.set(btnSubmit, "opacity", "0.5");
+		btnSubmit.removeAttribute("onclick");
+		domClass.remove(btnSubmit, "btnSubmit");
+		domClass.add(btnSubmit, "btnSubmitDisabled");
+	});
+}
+
+function hideProgress() {
+	require([
+		"dojo/dom",
+		"dojo/dom-class",
+		"dojo/dom-style"
+	],
+	function(dom, domClass, domStyle) {
+		var progress = dom.byId("refreshProgress");
+		var btnSubmit = dom.byId("btnSubmit");
+		domClass.add(progress, "hidden");
+		domStyle.set(btnSubmit, "opacity", "1.0");
+		btnSubmit.setAttribute("onclick", "submit()");
+		domClass.remove(btnSubmit, "btnSubmitDisabled");
+		domClass.add(btnSubmit, "btnSubmit");
+	});
+}
+
+function clearErrors() {
+	require([
+		"dojo/dom",
+		"dojo/dom-class",
+	],
+	function(dom, domClass) {
+		var questionErrorContainer = dom.byId("questionErrorContainer");
+		var questionError = dom.byId("questionError");
+		questionError.innerHTML = "";
+		domClass.add(questionErrorContainer, "hidden");
+	});
+}
+
+function clearStatusMsg() {
+	require([
+		"dojo/dom",
+		"dojo/dom-class",
+	],
+	function(dom, domClass) {
+		var statusMsgContainerDiv = dom.byId("statusMsgContainer");
+		var statusMsgDiv = dom.byId("statusMsg");
+		statusMsgDiv.innerHTML = "";
+		domClass.add(statusMsgContainerDiv, "hidden");
+		domClass.remove(statusMsgContainerDiv, "statusMsgSuccess");
+		domClass.remove(statusMsgContainerDiv, "statusMsgError");
+	});
+}
+
+function showHelp() {
+	require([
+		"dojo/dom",
+		"dojo/dom-class",
+	],
+	function(dom, domClass) {
+		var helpTextContainer = dom.byId("helpTextContainer");
+		var btnHelp = dom.byId("btnHelp");
+		if (helpTextVisible) {
+			domClass.add(helpTextContainer, "hidden");
+			domClass.remove(btnHelp, "btnHelpOn");
+			domClass.add(btnHelp, "btnHelp");
+			helpTextVisible = false;
+		} else {
+			domClass.remove(helpTextContainer, "hidden");
+			domClass.remove(btnHelp, "btnHelp");
+			domClass.add(btnHelp, "btnHelpOn");
+			helpTextVisible = true;
+		}
+	});
+}
+</script>
+
+
+<div class="container">
+	
+		<div class="jumbotron">
+			<div class="row">
+				<h1>Question Store Admin</h1>
+	  			
+	  			<h2>Rédigez vous vers "/admin"<h2>
+
+	  			
+	  		</div>
+
+	  		
+		</div>
+	
+</div>
