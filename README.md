@@ -19,8 +19,108 @@ The tool is developped on Node.js to provide a simple UI for users to enter ques
 - Filter on the different information fields defined. 
 - Download the whole database
 
-## Screenshots:
+## Roadmap Asset:
+![Graph](screenshot/roadmap.png "Graph")
 
+## Architecture:
+![Graph](screenshot/architecture.png "Graph")
+
+1.  Question collected are stored in the ‘DB_source_collect’ database.
+2.  Extraction from ‘DB_source_collect’ for supervise and analysis.
+3.  Replication of ‘DB_source_collect’ into the work database ‘DB_questions’.
+4.  Similar questions are grouped, duplicated questions are tagged.
+5.  Questions in each group are shown in ‘Question Classification Tool’ to be classified into intents. 
+6.  More questions should be clustered when all questions are classified.
+7.  Intents associated with questions are stored in a new database ‘intents’.
+8.  Intents could be merged, modified, administrated by ‘Intent Administration Tool’.
+9.  Intents could be extracted in csv and then be integrated into a Conversation Workspace format JSON file.
+
+## Data Model:
+### DB_source_collect
+```
+{
+  "_id": id_doc_cloudant,
+  "customer_id":  customer_id defined in database “Configuration”
+  "questions": [
+       Question User Input
+  ],
+  "profile_fields": [
+    {
+      "id":profile_fields id defined in database “Configuration”
+      "value": profile_fields  value defined in dtabase “Configuration”
+    }
+  ],
+  "name": User Input,
+  "email": User Input,
+  "timestamp":  Date format ISO,
+  "team": "TEAM1",
+  "duplicate": “0”/”1”,
+  "groupe": Integer
+  "archive": "true”/”false”
+}
+
+```
+
+### DB_questions
+```
+{
+  "_id": id_doc_cloudant,
+  "customer_id": customer_id defined in database “Configuration”
+  "questions": [
+       Question User Input
+  ],
+  "profile_fields": [
+ {
+      "id":profile_fields id defined in database “Configuration”
+      "value": profile_fields  value defined in dtabase “Configuration”
+    }
+  ],
+  "name": User Input,
+  "email": " User Input,
+  "timestamp": Date format ISO,
+  "team": User Input
+  "duplicate": "0"/”1”,
+  "groupe": Integer
+  "archive" : "true"/”false
+}
+
+```
+### DB_intents
+```
+{
+  "_id": id_doc_cloudant,
+  "id": "id_intent,
+  "libelle": label_intent
+  "name": name_intent
+  "type": type_intent
+  "verbe": verb_intent,
+  "questions": [
+    [
+      “id_question”: id_doc_questions_collected
+      “timestamp " : Timestamp_question_collected,
+      “author”: "author_question_collected
+      “question" : question_collected
+    ]
+  ],
+  "typeresponse": User Input,
+  "createur": User Input,
+  "release": "1",
+  "commentaire": User Input,
+  "status": {
+    "status": "merged",
+    "with":  label_intent_source",
+    "date": timestamp_merge,
+    "id": id_intent_source
+  }
+}
+
+```
+## Screenshots:
+### RoadMap:
+![Graph](screenshots/roadmap.png "Graph")
+
+### Architecture:
+![Graph](screenshots/architecture.png "Graph")
 ### Page login:
 ![Graph](screenshots/1.png "Graph")
 
@@ -150,3 +250,6 @@ Change it on the home page: `./views/admin.hbs`. There are 3 sections in this ap
 Update the "cookie_expiration" property to the desired value, the time unit is in days
 ### Change the questions goal
 Update the "questions_goal" property to the desired value, by defaut the value is 2000.
+
+### Dowload information in Database
+Modify the `function download()` in `./views/admin.hbs` to adapt the information that you configured in Question Collection Tool.
